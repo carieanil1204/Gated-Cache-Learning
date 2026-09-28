@@ -58,12 +58,38 @@ to hardest baseline, full method last:
   `resolve_via_test_oracle()` is a stub — needs the SWE-bench Docker
   execution harness wired in before it can actually resolve pass/fail.
 
+- **Config loading**: `src/config.py` — hand-rolled YAML loader with
+  `defaults:` composition, same semantics Hydra would have provided.
+  **Substitution note**: Hydra/omegaconf's dependency chain
+  (`antlr4-python3-runtime==4.9.3`) fails to build in this environment
+  — no wheel exists for that pinned version, and the sdist build fails
+  on a setuptools/distutils incompatibility unrelated to this project.
+  Config *files* are unaffected (`configs/*.yaml` unchanged); only the
+  loader differs. Tested against the real config files, including
+  2-level inheritance (`gcl_ablation_no_admission` → `gcl_full` →
+  `base`) — 2/2 passing.
+- **Cloud-only baseline** (build order step 3) — `run.py`, actually run
+  end-to-end: `python run.py cloud_only --mock` produces metrics and
+  appends a row per metric to `run_log.csv`. Uses `MockCloudLLM` (no
+  network/API key here) against a small synthetic problem set —
+  **not** the real SWE-bench data yet, since that load is still
+  unverified (see above). `src/models/cloud_llm.py` has the real
+  backend interface (`AnthropicCloudLLM`) stubbed to fail loudly rather
+  than silently no-op if used before a working API key/call exists.
+- **Metrics**: `src/eval/metrics.py` — pure aggregation
+  (hit_rate/cloud_calls/latency/task_success), decoupled from any
+  model or data source. 3/3 tests passing.
+- Full suite: **11/11 tests passing** as of this commit.
+
 ## Not yet built
 
-Everything in steps 3-8 above — no model code, no gate, no trainer yet.
-This commit is infrastructure only, per the plan's stated scope
-("scaffold the reproducibility discipline so real component code can be
-layered in next").
+Steps 4-8 of the build order — RouteLLM baseline (with the required
+reported-numbers check), GCL's own two ablations, Fang et al.
+reimplementation, full GCL (gate/Judge/trainer), and GCL's internal
+H4 ablations. Also still open: the real SWE-bench HF Hub load (needs
+network + `datasets`, untested here) and the test-execution oracle
+(needs the SWE-bench Docker harness wired in — currently a stub that
+raises `NotImplementedError`).
 
 ## Tracking
 

@@ -1,1 +1,5 @@
 run_id,config,seed,status,phase,metric_name,metric_value,wall_clock_s,commit,timestamp,notes
+cloud_only_seed0_1790595488,cloud_only,0,completed,smoke,hit_rate,0.0,,fc54013d957fbb2b8565265ec39a0099e256edad,2026-09-28T11:38:08.156395+00:00,
+cloud_only_seed0_1790595488,cloud_only,0,completed,smoke,cloud_calls,5,,fc54013d957fbb2b8565265ec39a0099e256edad,2026-09-28T11:38:08.156395+00:00,
+cloud_only_seed0_1790595488,cloud_only,0,completed,smoke,mean_latency_ms,50.0,,fc54013d957fbb2b8565265ec39a0099e256edad,2026-09-28T11:38:08.156395+00:00,
+cloud_only_seed0_1790595488,cloud_only,0,completed,smoke,task_success_rate,,,fc54013d957fbb2b8565265ec39a0099e256edad,2026-09-28T11:38:08.156395+00:00,
