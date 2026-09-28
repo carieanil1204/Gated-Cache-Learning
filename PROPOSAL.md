@@ -30,6 +30,67 @@ should also outperform static routing and ungated local training on
 drift and error accumulation. We propose an evaluation on long-running
 project workloads.
 
+## Related work
+
+**Edge-cloud routing.** RouteLLM (Ong et al., 2024, arXiv:2406.18665)
+learns a router that picks between a weak and a strong model from
+preference data, and is the de facto static-routing baseline. CoSense-LLM
+(arXiv:2510.19670) goes further with PromptRouter, a cost- and
+uncertainty-aware policy that chooses among edge-only, edge+RAG, or
+cloud escalation, with thresholds calibrated by regret minimization on
+held-out data. Zero-Shot Confidence Estimation for Small LLMs
+(arXiv:2605.02241) escalates on logprob-based confidence and reports
+gains over RouteLLM at matched cloud-call budgets. HybridLLM, surveyed
+in Li et al.'s edge-SLM/cloud-LLM collaboration survey (arXiv:2507.16731),
+predicts routing probabilities from a learned quality gap. All of these
+gate a single decision — whether to call the cloud — and none feed the
+resulting cloud answers back into training the local model.
+
+**Semantic caching.** MeanCache (arXiv:2403.02694) caches cloud responses
+keyed by semantic similarity to avoid repeat cloud calls, but the cache
+is static: it stores past answers without ever updating the underlying
+local model's weights.
+
+**On-device continual adaptation.** CoSense-LLM's Online Personalization
+stage fine-tunes local LoRA adapters on the model's own high-confidence
+pseudo-labels, with elastic-penalty and block-expansion regularization
+against forgetting — but this training loop is disconnected from
+PromptRouter; no cloud-answer quality gate or promotion/rollback check
+sits between them. Continual Learning for Sequential Personalization of
+SLMs (Paula et al., 2026) monitors reference-set drift across sequential
+LoRA updates but does not gate what data enters training.
+The broader LoRA-continual-learning literature (O-LoRA, Wang et al. 2023;
+I-LoRA, Ren et al. 2024; GainLoRA, Liang et al. 2025) targets catastrophic
+forgetting during sequential fine-tuning, which GCL's anchor-set
+regression check and rollback draw on, but none of these couple the
+adapter update to an upstream data-admission or downstream
+threshold-recalibration step.
+
+**Unified routing and learning.** Bridging On-Device and Cloud LLMs for
+Collaborative Reasoning (Fang et al., ICML 2026, arXiv:2509.24050) is the
+closest attempt to unify routing and learning: it uses reinforcement-
+learning post-training so the on-device model internally decides when to
+offload, removing the external router entirely. This is a different
+mechanism from GCL's — the routing decision is folded into the model's
+own policy rather than exposed as a calibrated, auditable gate — and it
+has no analogue of write-back admission, promotion/rollback safety, or
+post-promotion threshold recalibration.
+
+**Calibrated thresholds.** ConRAD (arXiv:2605.03806) derives per-operator
+thresholds from a risk budget with finite-sample guarantees, in a neural
+database setting; GCL's tau_h recalibration applies a similar
+calibrate-to-an-error-budget idea to the local/cloud hit decision,
+re-run after every adapter promotion rather than fit once.
+
+**Positioning.** Prior work calibrates the routing decision, caches past
+cloud answers, or continually adapts a local model — each in isolation.
+None of the systems above put one gate in charge of routing, filtering
+which cloud answers get admitted as training data, and recalibrating the
+routing threshold after every promotion, with a regression-gated
+promotion/rollback safety net tying the three together. That
+combination, not any single piece, is GCL's contribution. (This search
+was not exhaustive — see the working note on novelty verification below.)
+
 ## Proposed model
 
 ### Components
