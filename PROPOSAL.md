@@ -215,12 +215,36 @@ accumulated; before that threshold, tau_h falls back to a pooled
 calibration curve fit across the cold-start cohort (see Workload and
 dataset in the evaluation plan).
 
+**Well-definedness of tau_h.** The `min` in the formula above is only
+well-defined if E[error | p_hit >= t] is non-increasing in t — ECE and
+Brier score are calibration *diagnostics*, they don't *enforce* this,
+and a finite-sample empirical curve can be non-monotonic from noise
+alone, especially near the small-sample boundary just described. The
+calibration curve is therefore fit with **isotonic regression**
+specifically (not an arbitrary binning scheme), which is monotonic by
+construction and closes this gap directly. If no t in [0,1] satisfies
+the constraint — even t=1 still exceeds eps — tau_h falls back to 1
+(M_L never answers locally until the next promotion), rather than
+leaving the min undefined.
+
 ### Objective
 
 ```
 minimize  a*cloud_calls + b*latency + c*error
 subject to  error <= eps,  raw user data never leaves the device
 ```
+
+**Choosing a, b, c.** cloud_calls, latency, and error are on incompatible
+scales (calls/day, ms, a probability), so fixed unitless weights as
+written are not meaningful — this was flagged as unresolved in an
+earlier review pass. Fix: normalize each term by its cloud-only
+baseline value before weighting, and report a **Pareto frontier**
+(sweep the weights, or the epsilon-constraint method: minimize
+a*cloud_calls + b*latency at a grid of eps values) rather than
+committing to one arbitrary weight vector. The eps constraint remains
+a hard safety floor regardless of where on the frontier a deployment
+chooses to sit; error's presence in the objective just pushes it
+further down within whatever region the frontier allows.
 
 ## Evaluation plan
 
@@ -287,12 +311,20 @@ confirmatory test and inflate the apparent significance.
 Pilot phase (small N) estimates effect size and its variance for H1;
 this powers the main phase's sample size, following standard practice
 rather than a number picked in advance. Main phase: ≥5 seeds per
-condition, mean ± 95% bootstrap CI, paired tests (Wilcoxon signed-rank)
-where the query stream is shared across conditions, Holm-Bonferroni
-correction across the ablation family to control the multiple-
-comparisons problem. The primary metric (hit rate at fixed cloud-call
-budget) is pre-registered before the main phase runs, to guard against
-post-hoc metric selection.
+condition, mean ± 95% BCa bootstrap CI (more accurate than a plain
+percentile bootstrap for ratio-type metrics like hit rate), paired
+tests (Wilcoxon signed-rank) where the query stream is shared across
+conditions, Holm-Bonferroni correction across the ablation family to
+control the multiple-comparisons problem. The primary metric (hit rate
+at fixed cloud-call budget) is pre-registered before the main phase
+runs, to guard against post-hoc metric selection.
+
+**Note on Wilcoxon's assumption.** Signed-rank is not fully
+distribution-free — it assumes the paired differences are symmetric
+about the median, which is plausible but not guaranteed for hit-rate
+deltas across replicate repos. A sign test (weaker assumptions, less
+power) is reported alongside it as a robustness check rather than
+relying on Wilcoxon alone.
 
 ### Metrics
 
@@ -365,11 +397,10 @@ resolved:**
   inter-rater reliability check is possible without a second person,
   which the privacy constraint rules out by construction. Accepted as
   inherent to the single-user setting, not a bug to fix.
-- **Objective weights unset.** `a`, `b`, `c` in the optimization
-  objective (cloud_calls, latency, error) remain unjustified numbers —
-  flagged in the first review pass, still open. Needs either a
-  stated application-specific weighting or a Pareto-frontier framing
-  instead of a fixed scalarization.
+
+(Objective weights a/b/c, previously logged here as unresolved, are
+now fixed — see the Objective section's normalization/Pareto-frontier
+fix above.)
 
 ## Note on the gate model
 
