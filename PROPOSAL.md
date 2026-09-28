@@ -100,11 +100,15 @@ not exhaustive.
 - **Gate G**: a calibrated decision model. For a query x it returns
   p_hit (can M_L answer correctly?) and a risk class (see Risk
   classification below).
-- **Judge J**: a frozen external model, architecturally separate from
-  G, M_L, and the trainer — never fine-tuned on GCL's own data. Scores
-  candidate cloud answers for admission (see Training admission below).
-  Breaking this out of G is deliberate: it keeps the admission signal
-  from being graded by the same system whose training data it decides.
+- **Judge J**: a **third model, distinct from both M_L and M_C** —
+  not the cloud teacher grading its own output. Version-pinned for the
+  duration of a study so its judgments stay comparable across the run;
+  never fine-tuned on GCL's own data. Scores candidate cloud answers
+  for admission (see Training admission below). Breaking this out of G
+  is deliberate: it keeps the admission signal from being graded by the
+  same system whose training data it decides — and out of M_C, since a
+  model judging its own answers as trustworthy is the same conflict of
+  interest by another name.
 - **Cloud LLM M_C**: the fallback and the teacher.
 - **Trainer**: admits data, fine-tunes adapters, and handles promotion
   and rollback.
@@ -142,12 +146,23 @@ q(x, y) >= tau_q  and  user did not reject or correct y
 **q(x, y) is scored by Judge J, not by G.** Grading admission data with
 the same gate that is being trained on it is circular — G would be
 scoring the data that shapes its own future behavior. J is frozen,
-never updated by GCL's trainer, and is periodically spot-checked against
-a small human-labeled subsample to catch judge drift or miscalibration
-(a meta-calibration check on J itself, separate from calibrating G).
-User rejection or correction is a hard veto on admission regardless of
-q — it is the one ground-truth signal actually available at inference
-time, and corrections are stored as high-weight examples.
+never updated by GCL's trainer, and is periodically spot-checked to
+catch judge drift or miscalibration (a meta-calibration check on J
+itself, separate from calibrating G). User rejection or correction is a
+hard veto on admission regardless of q — it is the one ground-truth
+signal actually available at inference time, and corrections are
+stored as high-weight examples.
+
+**Spot-check logistics, without violating "raw data never leaves the
+device."** Outsourcing that spot-check to third-party annotators would
+mean shipping private project data off-device — the same constraint
+the objective already states. So the check is split by data
+sensitivity: private, project-specific (x, y) pairs are spot-checked by
+**the user themselves**, rating a small random sample of J's admit/
+reject calls each cycle (bounded effort — on the order of 10-20 pairs
+per calibration window); the general-capability anchor slice (public
+benchmark data, not private) can use ordinary third-party or public
+annotations, since no privacy constraint applies to it.
 
 ### Update and promotion
 
@@ -202,14 +217,25 @@ subject to  error <= eps,  raw user data never leaves the device
 
 ### Hypotheses
 
-The abstract's claims, made falsifiable and quantified:
+The abstract's claims, made falsifiable and quantified. No prior data
+exists to justify a specific effect size or sample size a priori, so
+H1 and H2 are run in two phases rather than asserting a threshold up
+front: a **pilot phase** (small N, e.g. 5 replicate simulated users)
+estimates the effect size and its variance; that estimate powers the
+**main phase**'s sample size and, for H1, the growth threshold — both
+reported with the pilot's estimate as justification, not picked in
+advance to be achievable.
 
-- **H1 (hit-rate growth)**: local hit rate at week 4 ≥ 1.5× hit rate at
-  week 1, paired across matched query streams, Wilcoxon signed-rank
-  test, p<0.05, N≥20 replicate simulated users.
+- **H1 (hit-rate growth)**: local hit rate increases monotonically
+  from week 1 to week 4 (directional prediction fixed now); the
+  specific magnitude threshold and required N are set from the pilot
+  phase's effect-size estimate, tested with a Wilcoxon signed-rank test
+  at p<0.05 in the main phase.
 - **H2 (quality preservation)**: task-success rate vs. cloud-only
   degrades by ≤5 percentage points at matched cloud-call budget, 95%
-  bootstrap CI, ≥5 seeds.
+  bootstrap CI, ≥5 seeds. (This bound is a design target from the
+  objective's error constraint, not a pilot-estimated quantity — kept
+  fixed.)
 - **H3 (drift robustness)**: GCL's error-rate variance over the run is
   lower than ungated local training's, tested with Levene's test on
   per-window error rates.
@@ -225,16 +251,20 @@ The abstract's claims, made falsifiable and quantified:
 | Static router | RouteLLM, arXiv:2406.18665 | official repo exists | low |
 | Retrieval, no training | — (ablation of GCL) | internal | none |
 | Local training, no gate | — (ablation of GCL) | internal | none |
-| Internally-routed SLM | Fang et al., ICML 2026, arXiv:2509.24050 | unconfirmed | flagged — verify code availability before committing to reproduce faithfully; may need to report as published |
+| Internally-routed SLM | Fang et al., ICML 2026, arXiv:2509.24050 | **no public release found** (checked arXiv, OpenReview, Semantic Scholar, GitHub search — no repository surfaced) | **high** — reimplement from the paper's stated method (RL post-training with hierarchical rewards and group-level policy gradient) rather than assuming a faithful re-run; report the gap between reimplementation and paper-reported numbers explicitly if they diverge |
 
 ### Workload and dataset
 
-- **Tier A (feasible now)**: a synthetic longitudinal workload —
-  topic-coherent multi-session query streams built by clustering and
-  replaying an existing multi-turn coding/QA benchmark into simulated
-  ~30-day project timelines, N≥20 independent replicate simulated users
-  for statistical power. Duration is measured in sessions, not wall
-  clock.
+- **Tier A (feasible now)**: a synthetic longitudinal workload built
+  from **SWE-bench** (or SWE-bench-Lite): each repository's issue
+  sequence over time is naturally topic-coherent and already
+  project-scoped, so per-repo issue streams stand in directly for
+  "long-running project workloads" rather than needing an artificial
+  clustering step. Session boundaries follow issue timestamps.
+  Replicate count follows the two-phase design above — a small pilot
+  (e.g. N=5 repos) sets the effect-size estimate, then the main run's N
+  is sized from that pilot rather than fixed at 20 in advance. Duration
+  is measured in sessions/issues, not wall clock.
 - **Tier B (future work)**: an opt-in real-user pilot, gated on the
   data-retention and correction-integrity policy flagged as open in
   Systems considerations below. Tier A is what is actually run for this
@@ -242,12 +272,15 @@ The abstract's claims, made falsifiable and quantified:
 
 ### Statistics plan
 
-≥5 seeds per condition. Report mean ± 95% bootstrap CI. Paired tests
-(Wilcoxon signed-rank) where the query stream is shared across
-conditions. Holm-Bonferroni correction across the ablation family to
-control the multiple-comparisons problem. The primary metric (hit rate
-at fixed cloud-call budget) is pre-registered before running, to guard
-against post-hoc metric selection.
+Pilot phase (small N) estimates effect size and its variance for H1;
+this powers the main phase's sample size, following standard practice
+rather than a number picked in advance. Main phase: ≥5 seeds per
+condition, mean ± 95% bootstrap CI, paired tests (Wilcoxon signed-rank)
+where the query stream is shared across conditions, Holm-Bonferroni
+correction across the ablation family to control the multiple-
+comparisons problem. The primary metric (hit rate at fixed cloud-call
+budget) is pre-registered before the main phase runs, to guard against
+post-hoc metric selection.
 
 ### Metrics
 
