@@ -1,0 +1,10 @@
+defaults:
+  - gcl_full
+
+condition: gcl_ablation_no_promotion
+# Build order: #7b — H4 ablation. Full GCL with the promotion/rollback
+# regression check disabled (every candidate adapter is promoted
+# unconditionally).
+
+trainer:
+  promotion_check: false

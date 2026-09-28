@@ -1,0 +1,10 @@
+defaults:
+  - base
+
+condition: cloud_only
+# Build order: #1 — simplest possible run. Every query goes to M_C.
+# No gate, no local model, no training. Validates the SWE-bench harness
+# and M_C wiring end to end before anything routing-related exists.
+
+model:
+  cloud_only: true

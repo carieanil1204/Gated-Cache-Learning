@@ -1,0 +1,17 @@
+defaults:
+  - base
+
+condition: gcl_ablation_local_no_gate
+# Build order: #4 — local model trains continuously with no admission
+# gate, no promotion/rollback check. This is the "locally trained models
+# risk learning their own mistakes" failure mode from the abstract —
+# needed as a baseline for H3 (drift/error-rate variance comparison).
+
+model:
+  local_model: true
+  retrieval_store: true
+  lora_adapter: true
+  gate: false
+trainer:
+  admission_gate: false
+  promotion_check: false

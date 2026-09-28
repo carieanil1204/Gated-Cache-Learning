@@ -1,0 +1,28 @@
+defaults:
+  - base
+
+condition: gcl_full
+# Build order: #6 — the full proposed method, last. Depends on every
+# component above (harness, data, at least one working baseline to
+# compare against) already being verified.
+
+model:
+  local_model: true
+  retrieval_store: true
+  lora_adapter: true
+  gate: true
+judge:
+  frozen: true
+  distinct_from: [local_model, cloud_model] # never M_C — see PROPOSAL.md
+gate:
+  tau_h_init: null # set by initial calibration pass, not hardcoded
+  tau_q: null
+  risk_classes: [low, medium, high]
+  calibration_method: isotonic_regression # monotonic by construction, see PROPOSAL.md
+trainer:
+  admission_gate: true
+  promotion_check: true
+  recalibration: true
+  anchor_set:
+    append_only: true
+    rotating_recency_subset: true

@@ -1,0 +1,9 @@
+defaults:
+  - gcl_full
+
+condition: gcl_ablation_no_recalibration
+# Build order: #7c — H4 ablation. Full GCL with tau_h fixed at its
+# initial calibration forever (no post-promotion recalibration step).
+
+trainer:
+  recalibration: false

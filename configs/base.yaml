@@ -1,0 +1,25 @@
+# Shared defaults every experiment condition inherits and overrides from.
+# No hyperparameter should be hardcoded in run scripts — it belongs here
+# or in a condition-specific config that composes with this one.
+
+seed: 0
+
+data:
+  source: swebench_lite # princeton-nlp/SWE-bench_Lite on HF Hub
+  split: test
+  pilot_fraction: 0.2 # fraction of repos held out for the pilot phase, disjoint from main
+  session_boundary: issue_timestamp
+
+eval:
+  metrics: [hit_rate, cloud_calls, latency_ms, task_success, error_rate]
+  bootstrap_ci: bca
+  bootstrap_resamples: 10000
+  significance_test: wilcoxon_signed_rank
+  robustness_test: sign_test
+  ablation_correction: holm_bonferroni
+
+tracking:
+  backend: mlflow # not wandb — see PROPOSAL.md privacy constraint (raw data never leaves device)
+  tracking_uri: file:./mlruns
+
+output_dir: results/${run_id}

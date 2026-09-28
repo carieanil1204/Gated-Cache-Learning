@@ -1,0 +1,18 @@
+defaults:
+  - base
+
+condition: fang_internal_routing
+# Build order: #5 — hardest baseline. No public code exists for this
+# paper (checked arXiv/OpenReview/Semantic Scholar/GitHub — none found,
+# see PROPOSAL.md). Reimplemented from the paper's stated method: RL
+# post-training with hierarchical rewards + group-level policy gradient,
+# so the on-device model decides internally whether to offload. High
+# reproduction risk — report the gap to paper-reported numbers explicitly
+# if reimplementation doesn't match, rather than silently reporting ours
+# as equivalent.
+
+baseline:
+  name: fang_et_al_icml2026
+  source: arxiv:2509.24050
+  official_repo: null # confirmed absent
+  reproduction_risk: high

@@ -1,0 +1,14 @@
+defaults:
+  - base
+
+condition: static_router
+# Build order: #2 — RouteLLM baseline. MUST be checked against RouteLLM's
+# own reported numbers on a comparable split before any GCL-specific code
+# is trusted (research-implementation skill's reproducibility checklist,
+# item 6: baseline verified before proposed method).
+
+baseline:
+  name: routellm
+  source: arxiv:2406.18665
+  official_repo: https://github.com/lm-sys/RouteLLM
+  reported_numbers_check: required_before_proceeding

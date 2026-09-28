@@ -1,0 +1,9 @@
+defaults:
+  - gcl_full
+
+condition: gcl_ablation_no_admission
+# Build order: #7a — H4 ablation. Full GCL with the write-back admission
+# gate disabled (all cloud pairs admitted, no q(x,y)/Judge J filter).
+
+trainer:
+  admission_gate: false

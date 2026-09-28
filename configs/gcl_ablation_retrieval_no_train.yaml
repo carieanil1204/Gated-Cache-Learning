@@ -1,0 +1,13 @@
+defaults:
+  - base
+
+condition: gcl_ablation_retrieval_no_train
+# Build order: #3 — local model + retrieval store, no LoRA training,
+# no gate. Simplest GCL-family component: exercises the retrieval store
+# and M_L in isolation before layering in the gate or trainer.
+
+model:
+  local_model: true
+  retrieval_store: true
+  lora_adapter: false
+  gate: false
