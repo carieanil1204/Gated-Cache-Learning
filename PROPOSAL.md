@@ -284,10 +284,19 @@ confirmatory test and inflate the apparent significance.
 | Method | Source | Code | Reproduction risk |
 |---|---|---|---|
 | Cloud-only | — | trivial | none |
-| Static router | RouteLLM, arXiv:2406.18665 | official repo exists | low |
+| Static router | RouteLLM, arXiv:2406.18665 | official repo exists, cloned and checked directly | **mixed** — the `random` router needs no weights and is faithfully reproduced (matches `RandomRouter.calculate_strong_win_rate` returning `random.uniform(0,1)` exactly, verified statistically in `tests/test_router.py`); the recommended `mf` router (and `bert`/`sw_ranking`/`causal_llm`) need pretrained weights hosted on huggingface.co/routellm, which is **confirmed policy-blocked** in the implementation environment (403, not a transient failure) — not implemented, flagged rather than silently skipped |
 | Retrieval, no training | — (ablation of GCL) | internal | none |
 | Local training, no gate | — (ablation of GCL) | internal | none |
 | Internally-routed SLM | Fang et al., ICML 2026, arXiv:2509.24050 | **no public release found** (checked arXiv, OpenReview, Semantic Scholar, GitHub search — no repository surfaced) | **high** — reimplement from the paper's stated method (RL post-training with hierarchical rewards and group-level policy gradient) rather than assuming a faithful re-run; report the gap between reimplementation and paper-reported numbers explicitly if they diverge |
+
+**Note on "verify against reported numbers" for the static router.**
+RouteLLM's own reported numbers (85% cost reduction, 95% GPT-4
+performance) are measured on MT-Bench/MMLU/GSM8K with a GPT-4/Mixtral
+pair — a different benchmark entirely from SWE-bench, so a direct
+number match was never going to be meaningful regardless of the HF
+block. The verification that is meaningful — that the reimplemented
+`random` router's behavior matches RouteLLM's own definition — is done
+statistically instead (see `tests/test_router.py`).
 
 ### Workload and dataset
 

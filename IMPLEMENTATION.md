@@ -52,11 +52,16 @@ to hardest baseline, full method last:
   passes). The grouping/split logic is tested and passing
   (`tests/test_swebench_loader.py`, 3/3 green) against synthetic data —
   the actual HF Hub load (`load_swebench()`) is written to the
-  documented schema but **not yet run** in this environment (no
-  network/`datasets` package available here). Treat it as an untested
-  first draft until run against the real dataset.
+  documented schema but **confirmed blocked** in this environment:
+  `huggingface.co` returns 403 (policy denial via the agent proxy, not
+  a transient failure — checked directly with `curl`). This is a
+  limitation of *this sandbox's* network policy, not necessarily the
+  final research environment (a normal workstation should reach HF
+  Hub fine) — flagged here so it isn't mistaken for a design problem.
   `resolve_via_test_oracle()` is a stub — needs the SWE-bench Docker
-  execution harness wired in before it can actually resolve pass/fail.
+  execution harness wired in before it can actually resolve pass/fail;
+  Docker itself IS available here, so this is buildable once the data
+  load happens somewhere that can reach HF.
 
 - **Config loading**: `src/config.py` — hand-rolled YAML loader with
   `defaults:` composition, same semantics Hydra would have provided.
@@ -79,17 +84,33 @@ to hardest baseline, full method last:
 - **Metrics**: `src/eval/metrics.py` — pure aggregation
   (hit_rate/cloud_calls/latency/task_success), decoupled from any
   model or data source. 3/3 tests passing.
-- Full suite: **11/11 tests passing** as of this commit.
+- **Static router baseline** (build order step 4) — `run.py`, run
+  end-to-end: `python run.py static_router --mock --seed 42` routes
+  each query via `src/models/router.py`'s `RandomRouter` (a faithful
+  reproduction of RouteLLM's actual `RandomRouter.calculate_strong_win_rate`,
+  checked directly against `github.com/lm-sys/RouteLLM`'s source — GitHub
+  reachable, cloned and read). RouteLLM's stronger routers (`mf`, the one
+  it actually recommends, plus `bert`/`sw_ranking`/`causal_llm`) need
+  pretrained weights from `huggingface.co/routellm` — same HF block as
+  above, so only `random` is implemented; `UnavailableRouter` fails
+  loudly if one of the others is selected rather than silently
+  substituting `random`. "Verify against reported numbers" doesn't
+  apply literally here — RouteLLM's numbers are on MT-Bench/MMLU/GSM8K
+  with GPT-4/Mixtral, not SWE-bench — so verification is statistical
+  instead: `RandomRouter`'s output distribution matches its documented
+  Uniform(0,1) behavior (`tests/test_router.py`, checked over 5000
+  samples).
+- Full suite: **15/15 tests passing** as of this commit.
 
 ## Not yet built
 
-Steps 4-8 of the build order — RouteLLM baseline (with the required
-reported-numbers check), GCL's own two ablations, Fang et al.
+Steps 5-8 of the build order — GCL's own two ablations, Fang et al.
 reimplementation, full GCL (gate/Judge/trainer), and GCL's internal
-H4 ablations. Also still open: the real SWE-bench HF Hub load (needs
-network + `datasets`, untested here) and the test-execution oracle
-(needs the SWE-bench Docker harness wired in — currently a stub that
-raises `NotImplementedError`).
+H4 ablations. Also still open: the real SWE-bench HF Hub load (confirmed
+blocked here, see above) and the test-execution oracle (needs the
+SWE-bench Docker harness wired in — currently a stub that raises
+`NotImplementedError`); RouteLLM's `mf`/`bert`/`sw_ranking`/`causal_llm`
+routers (same HF block).
 
 ## Tracking
 
