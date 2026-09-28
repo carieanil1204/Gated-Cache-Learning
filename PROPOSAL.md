@@ -98,11 +98,31 @@ not exhaustive.
 - **Local model M_L**: a small language model plus a retrieval store
   (facts, summaries) plus a LoRA adapter (style and problem patterns).
 - **Gate G**: a calibrated decision model. For a query x it returns
-  p_hit (can M_L answer correctly?), a risk class, and later a quality
-  score q for a candidate answer.
+  p_hit (can M_L answer correctly?) and a risk class (see Risk
+  classification below).
+- **Judge J**: a frozen external model, architecturally separate from
+  G, M_L, and the trainer — never fine-tuned on GCL's own data. Scores
+  candidate cloud answers for admission (see Training admission below).
+  Breaking this out of G is deliberate: it keeps the admission signal
+  from being graded by the same system whose training data it decides.
 - **Cloud LLM M_C**: the fallback and the teacher.
 - **Trainer**: admits data, fine-tunes adapters, and handles promotion
   and rollback.
+
+### Risk classification
+
+risk(x) is one of {low, medium, high}, determined by:
+
+- **Novelty**: embedding distance from x to the nearest retrieval-store
+  entry (high distance = high novelty).
+- **Safety-sensitive flag**: a fixed rule list over task type (code
+  execution, financial, medical) — presence forces at least `medium`.
+- **Confidence width**: the width of p_hit's confidence interval (wide
+  interval = less trustworthy point estimate).
+
+risk(x) = low only when novelty is low, no safety flag is set, and the
+p_hit confidence interval is narrow. Class boundaries are calibrated
+against a held-out set of labeled near-miss incidents, not hand-picked.
 
 ### Inference rule
 
@@ -119,7 +139,15 @@ A cloud pair (x, y) enters the replay buffer only if:
 q(x, y) >= tau_q  and  user did not reject or correct y
 ```
 
-User corrections are stored as high-weight examples.
+**q(x, y) is scored by Judge J, not by G.** Grading admission data with
+the same gate that is being trained on it is circular — G would be
+scoring the data that shapes its own future behavior. J is frozen,
+never updated by GCL's trainer, and is periodically spot-checked against
+a small human-labeled subsample to catch judge drift or miscalibration
+(a meta-calibration check on J itself, separate from calibrating G).
+User rejection or correction is a hard veto on admission regardless of
+q — it is the one ground-truth signal actually available at inference
+time, and corrections are stored as high-weight examples.
 
 ### Update and promotion
 
@@ -132,6 +160,17 @@ charging:
 3. Promote A' only if quality improves without regressing on the anchor
    set. Otherwise keep the current adapter (rollback).
 
+**Anchor set construction and refresh.** The anchor set (~100-500
+examples) is fixed at project start from two sources: recurring
+project facts/tasks identified in week one, and a fixed
+general-capability slice (catches forgetting outside the project
+domain, not just within it). It is **append-only and versioned** —
+entries are never removed, only added, every K promotions, from newly
+mined hard cases — so promotion decisions stay comparable across the
+project's history. A separate, deliberately *rotating* "recency"
+subset sits alongside the frozen core specifically to catch drift that
+an append-only anchor set would, by design, miss.
+
 ### Threshold recalibration
 
 After each promotion, refit the calibration curve of p_hit against
@@ -142,6 +181,16 @@ stays at or below a target ε:
 tau_h = min { t : E[error | p_hit >= t] <= eps }
 ```
 
+**Calibration metric.** "Calibrated" is reported as Expected
+Calibration Error (ECE) with adaptive binning (fixed-width bins are
+biased under a skewed p_hit distribution), plus Brier score and
+reliability diagrams, for both p_hit and q. Small-sample risk in a
+single-user setting: per-user recalibration is not trusted until at
+least 50 verified outcomes near the tau_h decision boundary have
+accumulated; before that threshold, tau_h falls back to a pooled
+calibration curve fit across the cold-start cohort (see Workload and
+dataset in the evaluation plan).
+
 ### Objective
 
 ```
@@ -151,12 +200,66 @@ subject to  error <= eps,  raw user data never leaves the device
 
 ## Evaluation plan
 
-- **Baselines**: cloud-only, static router (RouteLLM-style), local model
-  with retrieval but no training, and local training without the gate.
-- **Metrics**: hit rate over time, cloud cost, latency, quality against
-  cloud-only, drift and forgetting, and privacy leakage.
-- **Ablations**: remove the admission gate, the promotion check, or
-  recalibration, and measure which one matters most.
+### Hypotheses
+
+The abstract's claims, made falsifiable and quantified:
+
+- **H1 (hit-rate growth)**: local hit rate at week 4 ≥ 1.5× hit rate at
+  week 1, paired across matched query streams, Wilcoxon signed-rank
+  test, p<0.05, N≥20 replicate simulated users.
+- **H2 (quality preservation)**: task-success rate vs. cloud-only
+  degrades by ≤5 percentage points at matched cloud-call budget, 95%
+  bootstrap CI, ≥5 seeds.
+- **H3 (drift robustness)**: GCL's error-rate variance over the run is
+  lower than ungated local training's, tested with Levene's test on
+  per-window error rates.
+- **H4 (component necessity)**: removing any one of {admission gate,
+  promotion check, recalibration} measurably degrades H1 or H2,
+  Holm-Bonferroni corrected across the ablation grid.
+
+### Baselines
+
+| Method | Source | Code | Reproduction risk |
+|---|---|---|---|
+| Cloud-only | — | trivial | none |
+| Static router | RouteLLM, arXiv:2406.18665 | official repo exists | low |
+| Retrieval, no training | — (ablation of GCL) | internal | none |
+| Local training, no gate | — (ablation of GCL) | internal | none |
+| Internally-routed SLM | Fang et al., ICML 2026, arXiv:2509.24050 | unconfirmed | flagged — verify code availability before committing to reproduce faithfully; may need to report as published |
+
+### Workload and dataset
+
+- **Tier A (feasible now)**: a synthetic longitudinal workload —
+  topic-coherent multi-session query streams built by clustering and
+  replaying an existing multi-turn coding/QA benchmark into simulated
+  ~30-day project timelines, N≥20 independent replicate simulated users
+  for statistical power. Duration is measured in sessions, not wall
+  clock.
+- **Tier B (future work)**: an opt-in real-user pilot, gated on the
+  data-retention and correction-integrity policy flagged as open in
+  Systems considerations below. Tier A is what is actually run for this
+  evaluation; Tier B is not claimed as complete.
+
+### Statistics plan
+
+≥5 seeds per condition. Report mean ± 95% bootstrap CI. Paired tests
+(Wilcoxon signed-rank) where the query stream is shared across
+conditions. Holm-Bonferroni correction across the ablation family to
+control the multiple-comparisons problem. The primary metric (hit rate
+at fixed cloud-call budget) is pre-registered before running, to guard
+against post-hoc metric selection.
+
+### Metrics
+
+Hit rate over time, cloud cost, latency, task-success rate against
+cloud-only, drift and forgetting (per-window error-rate variance),
+and privacy leakage.
+
+### Ablations
+
+Remove the admission gate, the promotion check, or recalibration,
+individually, to isolate which of the three unified gate functions
+drives the H1/H2 gains — this is the direct test of H4.
 
 ## Systems considerations
 
