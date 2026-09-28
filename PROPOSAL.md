@@ -88,8 +88,8 @@ None of the systems above put one gate in charge of routing, filtering
 which cloud answers get admitted as training data, and recalibrating the
 routing threshold after every promotion, with a regression-gated
 promotion/rollback safety net tying the three together. That
-combination, not any single piece, is GCL's contribution. (This search
-was not exhaustive — see the working note on novelty verification below.)
+combination, not any single piece, is GCL's contribution. This search was
+not exhaustive.
 
 ## Proposed model
 
@@ -157,6 +157,51 @@ subject to  error <= eps,  raw user data never leaves the device
   cloud-only, drift and forgetting, and privacy leakage.
 - **Ablations**: remove the admission gate, the promotion check, or
   recalibration, and measure which one matters most.
+
+## Systems considerations
+
+The design above specifies the learning and decision logic; a production
+pipeline also needs answers to the following, currently open:
+
+- **Offline / gate-unavailable fallback.** The inference rule assumes the
+  gate and cloud are always reachable. No policy is specified for what
+  M_L does when M_C is unreachable or G itself is slow or down — likely
+  a conservative default (answer only above a stricter tau_h, or defer).
+- **Cost circuit breaker.** The objective minimizes cloud_calls in
+  expectation, but nothing caps it in the worst case. A hard per-period
+  budget with a corresponding fallback behavior is needed to bound
+  runaway cost.
+- **Drift-triggered retraining.** Promotion is currently scheduled (every
+  N pairs or overnight), not triggered by detected distribution shift.
+  A drift detector on the query or error distribution could trigger an
+  off-cycle update instead of waiting out the schedule.
+- **Staged rollout.** Promotion is binary (promote to 100% or rollback).
+  A canary stage — routing a fraction of traffic to A' before full
+  cutover — would catch regressions the held-out and anchor sets miss.
+- **Adapter/model versioning.** Rollback implies a "current adapter" is
+  tracked as a concrete, addressable artifact; this needs an explicit
+  registry, not an implicit pointer.
+- **Retrieval store staleness.** Facts and summaries in the retrieval
+  store have no invalidation or contradiction-resolution mechanism — a
+  fact cached early in a project can go stale or be contradicted by a
+  later cloud answer with no path to correct it.
+- **Data retention and correction integrity.** "Raw user data never
+  leaves the device" is stated as a constraint but not operationalized:
+  no retention/deletion policy for the replay buffer, and no defense
+  against a noisy or adversarial correction poisoning the high-weight
+  example set it feeds into.
+- **Cold start.** Day-one M_L has an empty adapter and retrieval store,
+  so p_hit is uninformative and most traffic misses by default. A
+  warm-start strategy (e.g., seeding the adapter from public data before
+  first use) is not addressed.
+- **Observability.** No telemetry is specified for tau_h drift, hit-rate
+  trend, or promotion history — needed to debug a bad promotion after
+  the fact, since the gate's risk class is not otherwise explainable.
+
+These are implementation and deployment concerns rather than gaps in the
+core hypothesis, but they affect whether an evaluation on long-running
+project workloads reflects a deployable system or only the idealized
+gate/trainer logic above.
 
 ## Note on the gate model
 
