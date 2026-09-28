@@ -16,6 +16,7 @@ from src.config import load_config
 from src.eval.metrics import compute_metrics
 from src.models.cloud_llm import CloudLLM, MockCloudLLM
 from src.models.local_llm import LocalLLM, MockLocalLLM
+from src.models.retrieval_store import RetrievalStore
 from src.models.router import RandomRouter, Router
 from src.seeding import set_all_seeds
 
@@ -68,9 +69,65 @@ def run_static_router(
     return records
 
 
+def run_retrieval_no_train(
+    cfg: dict,
+    store: RetrievalStore,
+    cloud_model: CloudLLM,
+    novelty_threshold: float,
+    problem_statements: list[str],
+) -> list[dict]:
+    """Build order step 5a. Purely static memory — the retrieval store
+    is seeded once and never updated during the run, so a cloud escalation
+    is discarded rather than absorbed. Distinguishes this from
+    local_no_gate below: no online adaptation happens here at all,
+    matching PROPOSAL.md's "local model with retrieval but no training"
+    baseline description."""
+    records = []
+    for statement in problem_statements:
+        nearest = store.nearest(statement)
+        if nearest is not None and store.novelty(statement) <= novelty_threshold:
+            records.append({"answered_by": "local", "latency_ms": 5.0, "success": None})
+        else:
+            response = cloud_model.answer(statement)
+            records.append({"answered_by": "cloud", "latency_ms": response.latency_ms, "success": None})
+            # Deliberately NOT stored — no training/online adaptation in this ablation.
+    return records
+
+
+def run_local_no_gate(
+    cfg: dict,
+    store: RetrievalStore,
+    cloud_model: CloudLLM,
+    novelty_threshold: float,
+    problem_statements: list[str],
+) -> list[dict]:
+    """Build order step 5b. Same routing as retrieval_no_train, but
+    every cloud escalation is unconditionally absorbed into the store
+    — no admission gate, no quality check, no rejection possible. This
+    is the "locally trained models risk learning their own mistakes"
+    failure mode from PROPOSAL.md's abstract, stood in for with
+    RetrievalStore since real adapter training needs a GPU this
+    environment doesn't have (see IMPLEMENTATION.md). Structural
+    behavior (unconditional write-back) is exercised here; measuring
+    its harmful effect (H3) needs the test oracle, which is still
+    blocked (see src/data/swebench_loader.py)."""
+    records = []
+    for statement in problem_statements:
+        nearest = store.nearest(statement)
+        if nearest is not None and store.novelty(statement) <= novelty_threshold:
+            records.append({"answered_by": "local", "latency_ms": 5.0, "success": None})
+        else:
+            response = cloud_model.answer(statement)
+            records.append({"answered_by": "cloud", "latency_ms": response.latency_ms, "success": None})
+            store.add(statement)  # unconditional — no gate, no quality filter, no rejection
+    return records
+
+
 CONDITION_RUNNERS = {
     "cloud_only": run_cloud_only,
     "static_router": run_static_router,
+    "gcl_ablation_retrieval_no_train": run_retrieval_no_train,
+    "gcl_ablation_local_no_gate": run_local_no_gate,
 }
 
 
@@ -118,6 +175,7 @@ def main():
     parser.add_argument("condition")
     parser.add_argument("--seed", type=int, default=None)
     parser.add_argument("--threshold", type=float, default=0.5, help="static_router only")
+    parser.add_argument("--novelty-threshold", type=float, default=0.5, help="gcl ablation conditions only")
     parser.add_argument("--mock", action="store_true", help="use mock models instead of real backends")
     args = parser.parse_args()
 
@@ -150,6 +208,22 @@ def main():
             strong_model=MockCloudLLM(),
             weak_model=MockLocalLLM(),
             threshold=args.threshold,
+            problem_statements=problem_statements,
+        )
+    elif args.condition == "gcl_ablation_retrieval_no_train":
+        records = run_retrieval_no_train(
+            cfg,
+            store=RetrievalStore(),
+            cloud_model=MockCloudLLM(),
+            novelty_threshold=args.novelty_threshold,
+            problem_statements=problem_statements,
+        )
+    elif args.condition == "gcl_ablation_local_no_gate":
+        records = run_local_no_gate(
+            cfg,
+            store=RetrievalStore(),
+            cloud_model=MockCloudLLM(),
+            novelty_threshold=args.novelty_threshold,
             problem_statements=problem_statements,
         )
     else:

@@ -100,17 +100,37 @@ to hardest baseline, full method last:
   instead: `RandomRouter`'s output distribution matches its documented
   Uniform(0,1) behavior (`tests/test_router.py`, checked over 5000
   samples).
-- Full suite: **15/15 tests passing** as of this commit.
+- **GCL's own two ablations** (build order step 5) — `run.py`, both run
+  end-to-end: `python run.py gcl_ablation_retrieval_no_train --mock`
+  and `python run.py gcl_ablation_local_no_gate --mock`.
+  `src/models/retrieval_store.py` is real (if simplified) working
+  code — bag-of-words + cosine similarity, not a real sentence
+  embedding model (that needs torch/transformers; deliberate scope cut
+  given no GPU here — swap in a real embedding model before trusting
+  retrieval-quality numbers, the logic itself is what's verified).
+  The two ablations are built to actually differ the way
+  `PROPOSAL.md` describes them, and this is tested, not just claimed:
+  `retrieval_no_train`'s store never grows (0% hit rate on 3
+  near-duplicate queries, all escalate); `local_no_gate`'s store
+  absorbs every cloud answer with zero filtering (queries 2-3 hit
+  locally after query 1's escalation gets memorized) —
+  `tests/test_gcl_ablations.py`, 3/3 green. Real LoRA training is
+  stood in for by this memorization mechanism throughout, since actual
+  adapter training needs a GPU this environment doesn't have — the
+  *structural* behavior (unconditional vs. no write-back) is exercised
+  here; measuring the *harm* of unconditional write-back (H3) needs
+  the test oracle, still blocked.
+- Full suite: **22/22 tests passing** as of this commit.
 
 ## Not yet built
 
-Steps 5-8 of the build order — GCL's own two ablations, Fang et al.
-reimplementation, full GCL (gate/Judge/trainer), and GCL's internal
-H4 ablations. Also still open: the real SWE-bench HF Hub load (confirmed
-blocked here, see above) and the test-execution oracle (needs the
-SWE-bench Docker harness wired in — currently a stub that raises
-`NotImplementedError`); RouteLLM's `mf`/`bert`/`sw_ranking`/`causal_llm`
-routers (same HF block).
+Steps 6-8 of the build order — Fang et al. reimplementation, full GCL
+(gate/Judge/trainer, needs a real embedding model + real adapter
+training, not the retrieval-store stand-in used for the ablations), and
+GCL's internal H4 ablations. Also still open: the real SWE-bench HF Hub
+load (confirmed blocked here) and the test-execution oracle (needs the
+SWE-bench Docker harness wired in); RouteLLM's
+`mf`/`bert`/`sw_ranking`/`causal_llm` routers (same HF block).
 
 ## Tracking
 
