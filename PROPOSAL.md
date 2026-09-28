@@ -153,6 +153,15 @@ hard veto on admission regardless of q — it is the one ground-truth
 signal actually available at inference time, and corrections are
 stored as high-weight examples.
 
+**On Tier A, prefer the benchmark's own oracle over J when one
+exists.** SWE-bench resolves a candidate patch to objective pass/fail
+against its test suite — a stronger signal than J's subjective score.
+For candidates with an executable check, q(x, y) is set from that
+test outcome directly; J is the fallback for the (majority of)
+candidates without one. This is a Tier-A-only refinement — no such
+oracle exists for general conversational queries, so Tier B and real
+deployment still depend on J.
+
 **Spot-check logistics, without violating "raw data never leaves the
 device."** Outsourcing that spot-check to third-party annotators would
 mean shipping private project data off-device — the same constraint
@@ -224,7 +233,10 @@ front: a **pilot phase** (small N, e.g. 5 replicate simulated users)
 estimates the effect size and its variance; that estimate powers the
 **main phase**'s sample size and, for H1, the growth threshold — both
 reported with the pilot's estimate as justification, not picked in
-advance to be achievable.
+advance to be achievable. **Pilot and main-phase samples are disjoint**
+(no repo used in the pilot is reused in the main phase) — reusing data
+across the two would leak the effect-size estimate into the
+confirmatory test and inflate the apparent significance.
 
 - **H1 (hit-rate growth)**: local hit rate increases monotonically
   from week 1 to week 4 (directional prediction fixed now); the
@@ -338,6 +350,26 @@ These are implementation and deployment concerns rather than gaps in the
 core hypothesis, but they affect whether an evaluation on long-running
 project workloads reflects a deployable system or only the idealized
 gate/trainer logic above.
+
+**Known limitations of the evaluation design, logged rather than
+resolved:**
+
+- **SWE-bench aggregates contributors, not a persona.** A repo's issue
+  stream over time comes from many real people, not one continuous
+  user. Treating a repo as a "simulated user" approximates the
+  abstract's single-user framing; it does not reproduce it. Flagged,
+  not fixed — a real fix needs either a genuinely single-author data
+  source or an explicit persona-construction step not yet designed.
+- **Single-rater spot-check.** The user checking Judge J's admit/
+  reject calls is the only calibration signal for private data — no
+  inter-rater reliability check is possible without a second person,
+  which the privacy constraint rules out by construction. Accepted as
+  inherent to the single-user setting, not a bug to fix.
+- **Objective weights unset.** `a`, `b`, `c` in the optimization
+  objective (cloud_calls, latency, error) remain unjustified numbers —
+  flagged in the first review pass, still open. Needs either a
+  stated application-specific weighting or a Pareto-frontier framing
+  instead of a fixed scalarization.
 
 ## Note on the gate model
 
