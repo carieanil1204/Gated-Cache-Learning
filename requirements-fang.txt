@@ -1,0 +1,7 @@
+# Minimal environment for the Fang baseline and repository tests.
+numpy>=1.26
+PyYAML>=6.0
+pytest>=7.4
+torch>=2.6,<3
+transformers>=4.51,<5
+peft>=0.15,<1

@@ -2,6 +2,10 @@
 
 *Working title*
 
+This document defines the research goal and evaluation design. Current
+implementation status and next work are tracked in
+[IMPLEMENTATION.md](IMPLEMENTATION.md).
+
 ## Abstract
 
 Cloud LLM assistants send every query, with its full context, to a large

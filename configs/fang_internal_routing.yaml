@@ -2,7 +2,7 @@ defaults:
   - base
 
 condition: fang_internal_routing
-# Build order: #5 — hardest baseline. No public code exists for this
+# Build order: #6 — hardest baseline. No public code exists for this
 # paper (checked arXiv/OpenReview/Semantic Scholar/GitHub — none found,
 # see PROPOSAL.md). Reimplemented from the paper's stated method: RL
 # post-training with hierarchical rewards + group-level policy gradient,
@@ -16,3 +16,23 @@ baseline:
   source: arxiv:2509.24050
   official_repo: null # confirmed absent
   reproduction_risk: high
+
+# Countdown settings from Table 10 of arXiv:2509.24050v4.
+# LoRA and the paraphrased Template I are documented implementation choices.
+fang:
+  source_version: arxiv:2509.24050v4
+  verifier: src.eval.countdown:verify_countdown
+  group_size: 8
+  rho: 0.42857142857142855 # 3/7; evaluation call fraction = rho/(1+rho)
+  accuracy_reward: 1.0
+  coordination_reward: 0.25
+  batch_size: 32
+  training_steps: 800
+  model_name: Qwen/Qwen2.5-3B-Instruct
+  revision: null # resolved commit is saved with every checkpoint
+  learning_rate: 0.000005
+  max_prompt_tokens: 256
+  max_new_tokens: 720
+  lora_rank: 8 # 0 selects full parameter training
+  lora_alpha: 16
+  lora_target_modules: [q_proj, v_proj]

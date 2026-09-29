@@ -1,9 +1,8 @@
 """Run entry point. Usage: python run.py <condition_name> [--seed N]
 
-Implements the cloud-only condition end-to-end (build order step 3).
-Other conditions (static_router, gcl_full, etc.) will raise
-NotImplementedError until their steps are built — this deliberately
-doesn't silently no-op on an unbuilt condition.
+Provides explicitly mocked runs for the implemented conditions. Fang model
+training and checkpoint evaluation use train_fang.py and eval_fang.py.
+Unbuilt conditions raise NotImplementedError; real runs never fall back to mocks.
 """
 
 import argparse
@@ -18,6 +17,7 @@ from src.models.cloud_llm import CloudLLM, MockCloudLLM
 from src.models.local_llm import LocalLLM, MockLocalLLM
 from src.models.retrieval_store import RetrievalStore
 from src.models.router import RandomRouter, Router
+from src.models.fang import MockFangPolicy, run_fang
 from src.seeding import set_all_seeds
 
 REPO_ROOT = Path(__file__).resolve().parent
@@ -128,13 +128,14 @@ CONDITION_RUNNERS = {
     "static_router": run_static_router,
     "gcl_ablation_retrieval_no_train": run_retrieval_no_train,
     "gcl_ablation_local_no_gate": run_local_no_gate,
+    "fang_internal_routing": run_fang,
 }
 
 
 def append_run_log_row(run_id: str, cfg: dict, seed: int, status: str, metrics, commit: str) -> None:
     is_new = not RUN_LOG_PATH.exists()
     with open(RUN_LOG_PATH, "a", newline="") as f:
-        writer = csv.writer(f)
+        writer = csv.writer(f, lineterminator="\n")
         if is_new:
             writer.writerow(
                 [
@@ -189,7 +190,7 @@ def main():
             "wired up yet — see IMPLEMENTATION.md's build order."
         )
     if not args.mock:
-        print("No real backend verified in this environment yet — using mock models regardless of --mock. See src/models/.")
+        parser.error("run.py currently requires --mock; real Fang training uses train_fang.py. No silent mock fallback.")
 
     # Placeholder problem set until the real SWE-bench load is verified
     # (src/data/swebench_loader.py's load_swebench() needs network +
@@ -226,6 +227,8 @@ def main():
             novelty_threshold=args.novelty_threshold,
             problem_statements=problem_statements,
         )
+    elif args.condition == "fang_internal_routing":
+        records = run_fang(cfg, MockFangPolicy(), MockCloudLLM(), problem_statements)
     else:
         raise NotImplementedError(args.condition)
 

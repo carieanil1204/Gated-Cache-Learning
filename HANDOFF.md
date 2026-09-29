@@ -1,5 +1,13 @@
 # Handoff — Gated Cache-Learning (GCL)
 
+This is a dated handoff, not the current status source. Read
+[PROPOSAL.md](PROPOSAL.md) for the research goal and
+[IMPLEMENTATION.md](IMPLEMENTATION.md) for current status and next work.
+The 2026-09-28 cloud-session notes below preserve environment and decision
+history. Later workstation findings belong in [IMPLEMENTATION.md](IMPLEMENTATION.md).
+
+## Original cloud-session handoff
+
 Read this first in a new session before doing anything else. Written
 2026-09-28, end of a cloud session, to be picked up on the user's
 workstation (`srmap-jc205`) once Claude credits/quota are available

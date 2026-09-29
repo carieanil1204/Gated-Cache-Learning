@@ -15,3 +15,7 @@ gcl_ablation_local_no_gate_seed1_1790596322,gcl_ablation_local_no_gate,1,complet
 gcl_ablation_local_no_gate_seed1_1790596322,gcl_ablation_local_no_gate,1,completed,smoke,cloud_calls,1,,d0aa2c45dada1e538dde880b26a309964b918b45,2026-09-28T11:52:02.367382+00:00,
 gcl_ablation_local_no_gate_seed1_1790596322,gcl_ablation_local_no_gate,1,completed,smoke,mean_latency_ms,14.0,,d0aa2c45dada1e538dde880b26a309964b918b45,2026-09-28T11:52:02.367382+00:00,
 gcl_ablation_local_no_gate_seed1_1790596322,gcl_ablation_local_no_gate,1,completed,smoke,task_success_rate,,,d0aa2c45dada1e538dde880b26a309964b918b45,2026-09-28T11:52:02.367382+00:00,
+fang_internal_routing_seed1_1790703280,fang_internal_routing,1,completed,smoke,hit_rate,0.8,,a703dfc12a2b21d9bb274e00092cc103529b9f40,2026-09-29T17:34:40.566264+00:00,
+fang_internal_routing_seed1_1790703280,fang_internal_routing,1,completed,smoke,cloud_calls,1,,a703dfc12a2b21d9bb274e00092cc103529b9f40,2026-09-29T17:34:40.566264+00:00,
+fang_internal_routing_seed1_1790703280,fang_internal_routing,1,completed,smoke,mean_latency_ms,18.0,,a703dfc12a2b21d9bb274e00092cc103529b9f40,2026-09-29T17:34:40.566264+00:00,
+fang_internal_routing_seed1_1790703280,fang_internal_routing,1,completed,smoke,task_success_rate,,,a703dfc12a2b21d9bb274e00092cc103529b9f40,2026-09-29T17:34:40.566264+00:00,
